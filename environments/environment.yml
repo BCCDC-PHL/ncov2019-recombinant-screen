@@ -1,0 +1,26 @@
+name: ncov2019-recombinant-screen
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  # Metadata and Sequence Manipulation
+  - bioconda::csvtk=0.23.0
+  - bioconda::seqkit=2.2.0
+  # Alignmnent and Clade QC
+  - bioconda::nextclade=1.11.0
+  # Usher
+  - bioconda::usher=0.5.3
+  - conda-forge::protobuf=3.18.1
+  # Python
+  - python=3.9
+  - pip=22.0.3
+  - requests=2.28.0
+  - pip:
+    # sc2rf dependencies
+    - termcolor==1.1.0
+    - tqdm==4.63.0
+    # Taxonium (visualization)
+    - taxoniumtools
+    # Chronumental (time tree)
+    - chronumental
