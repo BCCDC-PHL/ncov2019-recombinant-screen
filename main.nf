@@ -12,6 +12,7 @@ include { sc2rf } from './modules/recombinant_screen.nf'
 include { sc2rf_recombinants } from './modules/recombinant_screen.nf'
 include { fasta_to_vcf } from './modules/recombinant_screen.nf'
 include { usher_download } from './modules/recombinant_screen.nf'
+include { usher } from './modules/recombinant_screen.nf'
 
 
 workflow {
@@ -43,5 +44,6 @@ workflow {
 
     if (params.run_usher) {
       usher_download()
+      usher(fasta_to_vcf.out.combine(usher_download.out))
     }
 }

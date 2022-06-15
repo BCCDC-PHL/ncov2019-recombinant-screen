@@ -216,20 +216,43 @@ process fasta_to_vcf {
 
 process usher_download {
 
-  tag {}
-
   input:
     
 
   output:
-    
+    path("usher.pb.gz")
 
   script:
   """
   wget -q -O usher.pb.gz ${params.usher_pb_url}
   wget -q -O metadata.tsv.gz ${params.usher_metadata_url}
   wget -q -O version.txt ${params.usher_version_url}
-  # csvtk mutate2 -t -n "dataset" -e '"{wildcards.input}"' {output.metadata}.gz 1> {output.metadata} 2>> {log};
+  # csvtk mutate2 -t -n "dataset" -e '"{wildcards.input}"' metadata.tsv.gz 1> {output.metadata} 2>> {log};
   # rm -f {output.metadata}.gz
+  """
+}
+
+process usher {
+
+  tag { run_id }
+
+  publishDir "${params.outdir}", pattern: "${run_id}_usher*", mode: 'copy'
+
+  input:
+    tuple val(run_id), path(recombinants_vcf), path(usher_tree)
+
+  output:
+    tuple val(run_id), path("${run_id}_usher_clades.tsv"), path("${run_id}_usher_placement_stats.tsv")
+
+  script:
+  """
+  usher \
+    -i ${usher_tree} \
+    -o output.pb \
+    -v ${recombinants_vcf} \
+    --threads ${task.cpus} \
+    --outdir usher_output
+  cat <(echo -e "library_id\\tusher_clade\\tusher_pango_lineage") usher_output/clades.txt > ${run_id}_usher_clades.tsv
+  cat <(echo -e "library_id\\tusher_best_set_difference\\tusher_num_best") <(sed 's/[[:space:]]*\$//' usher_output/placement_stats.tsv) > ${run_id}_usher_placement_stats.tsv
   """
 }
