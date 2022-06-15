@@ -110,18 +110,44 @@ process nextclade_recombinants {
     tuple val(run_id), path(alignment), path(nextclade_qc)
 
   output:
-    tuple val(run_id), path("${run_id}_nextclade_recombinants.tsv")
+    tuple val(run_id), path("${run_id}_recombinants.aln.fa"), emit: alignment
+    tuple val(run_id), path("${run_id}_nextclade_recombinants.tsv"), emit: recombinants_list
 
   script:
   """
   # Extract recombinants
   csvtk grep -t -f "clade,Nextclade_pango,qc.overallStatus" -r -p ".*(recombinant|X|bad|mediocre).*" ${nextclade_qc} \
-    | csvtk grep -t -v -f "clade" -r -p ".*({params.exclude_clades}).*" \
+    | csvtk grep -t -v -f "clade" -r -p ".*(${params.nextclade_exclude_clades}).*" \
     | csvtk cut -t -f "seqName" \
     | tail -n+2 \
     > ${run_id}_nextclade_recombinants.tsv
   # Filter Alignment
-  seqkit grep -p "{params.custom_ref}" ${alignment} 1> aligned.fa
-  seqkit grep -f "{output.strains}" ${alignment} 1>> aligned.fa
+  seqkit grep -p "${params.nextclade_custom_ref}" ${alignment} 1> aligned.fa
+  seqkit grep -f ${run_id}_nextclade_recombinants.tsv ${alignment} 1>> ${run_id}_recombinants.aln.fa
   """
+}
+
+process sc2rf {
+
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(alignment), path(primer_bed)
+
+  output:
+    tuple val(run_id), path("${run_id}_sc2rf.csv")
+
+  script:
+  sc2rf_args = "--ansi --parents 2-4 --breakpoints 0-4 --unique 1 --max-ambiguous 20 --max-intermission-length 3 --max-intermission-count 3"
+  """
+  sc2rf \
+    ${sc2rf_args} \
+    --primers ${primer_bed} \
+    --max-name-length ${params.sc2rf_max_name_length} \
+    --clades "${params.sc2rf_clades}" \
+    --mutation-threshold ${params.sc2rf_mutation_threshold} \
+    --csvfile ${run_id}_sc2rf.csv \
+    ${alignment}
+  """
+
 }

@@ -1,0 +1,11 @@
+name: ncov2019-recombinant-screen-sc2rf
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  # Python
+  - python=3.9
+  - pip=22.0.3
+  - pip:
+    - git+https://github.com/BCCDC-PHL/sc2rf.git

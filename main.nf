@@ -8,12 +8,14 @@ include { identify_complete_genomes } from './modules/recombinant_screen.nf'
 include { prepare_multi_fasta } from './modules/recombinant_screen.nf'
 include { nextclade } from './modules/recombinant_screen.nf'
 include { nextclade_recombinants } from './modules/recombinant_screen.nf'
+include { sc2rf } from './modules/recombinant_screen.nf'
 
 
 workflow {
 
   ch_run_id = Channel.of(params.run_id)
   ch_breakpoints = Channel.fromPath(params.breakpoints)
+  ch_primer_bed = Channel.fromPath(params.primer_bed)
   ch_artic_analysis_dir = Channel.fromPath(params.artic_analysis_dir)
 
   main:
@@ -28,4 +30,6 @@ workflow {
     nextclade(prepare_multi_fasta.out.join(nextclade_dataset.out))
 
     nextclade_recombinants(nextclade.out)
+
+    sc2rf(nextclade_recombinants.out.alignment.combine(ch_primer_bed))
 }
