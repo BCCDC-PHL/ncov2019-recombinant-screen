@@ -38,5 +38,5 @@ workflow {
 
     sc2rf_recombinants(sc2rf.out.join(nextclade.out).join(issues_download.out.issues))
 
-    fasta_to_vcf(sc2rf_postprocess.out.fasta.combine(ch_problematic_sites))
+    fasta_to_vcf(sc2rf_recombinants.out.fasta.combine(ch_problematic_sites))
 }

@@ -166,7 +166,7 @@ process sc2rf_recombinants {
   publishDir "${params.outdir}", pattern: "sc2rf_postprocess_output/${run_id}_sc2rf.*", mode: 'copy', saveAs: { filename -> filename.split("/").last() }
 
   input:
-    tuple val(run_id), path(sc2rf_ansi), path(sc2rf_csv), path(alignment), path(nextclade_qc), path(issues)
+    tuple val(run_id), path(sc2rf_ansi), path(sc2rf_csv), path(alignment), path(nextclade_qc_tsv), path(issues)
 
   output:
     tuple val(run_id), path("sc2rf_postprocess_output/${run_id}_sc2rf.fasta"), emit: fasta
@@ -185,19 +185,22 @@ process sc2rf_recombinants {
     --max-breakpoints ${params.sc2rf_max_breakpoints} \
     --outdir sc2rf_postprocess_output \
     --aligned ${alignment} \
+    --custom-ref "${params.nextclade_custom_ref}" \
     --issues ${issues} \
+    --qc ${nextclade_qc_tsv} \
     ${motifs}
   """
 }
 
 process fasta_to_vcf {
+
   tag { run_id }
 
   input:
     tuple val(run_id), path(sc2rf_recombinants_fasta), path(problematic_sites)
 
   output:
-    val(run_id)
+    tuple val(run_id), path("${run_id}_recombinants.vcf.gz")
 
   script:
   """
@@ -206,7 +209,8 @@ process fasta_to_vcf {
     -maskSites=${problematic_sites} \
     -ref='${params.nextclade_custom_ref}' \
     ${sc2rf_recombinants_fasta} \
-    ${params.run_id}
-  # gzip -f {params.prefix}
+    ${run_id}_recombinants.vcf
+  gzip -f ${run_id}_recombinants.vcf
   """
 }
+
