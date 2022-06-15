@@ -95,6 +95,10 @@ process nextclade {
     --output-fasta ${run_id}.aln.fa \
     --output-basename ${run_id} \
     > nextclade.log 2>&1
+
+  # Rename ref strain
+  seqkit replace -p "${params.nextclade_ref}" -r "${params.nextclade_custom_ref}" ${run_id}.aln.fa > ${run_id}.aln.fa.tmp
+  mv ${run_id}.aln.fa.tmp ${run_id}.aln.fa
   """
 }
 
