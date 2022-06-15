@@ -8,7 +8,8 @@ process issues_download {
     tuple val(run_id), path(breakpoints)
 
   output:
-    tuple val(run_id), path("issues.tsv"), path("issue_to_lineage.tsv")
+    tuple val(run_id), path("issues.tsv"), emit: issues
+    tuple val(run_id), path("issue_to_lineage.tsv"), emit: issue_to_lineage
 
   script:
   """
@@ -139,7 +140,7 @@ process sc2rf {
     tuple val(run_id), path(alignment), path(primer_bed)
 
   output:
-    tuple val(run_id), path("${run_id}_sc2rf.csv")
+    tuple val(run_id), path("${run_id}_sc2rf_ansi.txt"), path("${run_id}_sc2rf.csv")
 
   script:
   sc2rf_args = "--ansi --parents 2-4 --breakpoints 0-4 --unique 1 --max-ambiguous 20 --max-intermission-length 3 --max-intermission-count 3"
@@ -148,10 +149,64 @@ process sc2rf {
     ${sc2rf_args} \
     --primers ${primer_bed} \
     --max-name-length ${params.sc2rf_max_name_length} \
-    --clades "${params.sc2rf_clades}" \
+    --clades ${params.sc2rf_clades} \
     --mutation-threshold ${params.sc2rf_mutation_threshold} \
     --csvfile ${run_id}_sc2rf.csv \
-    ${alignment}
+    ${alignment} \
+    > ${run_id}_sc2rf_ansi.txt
   """
+}
 
+process sc2rf_recombinants {
+
+  tag { run_id }
+
+  executor 'local'
+
+  publishDir "${params.outdir}", pattern: "sc2rf_postprocess_output/${run_id}_sc2rf.*", mode: 'copy', saveAs: { filename -> filename.split("/").last() }
+
+  input:
+    tuple val(run_id), path(sc2rf_ansi), path(sc2rf_csv), path(alignment), path(nextclade_qc), path(issues)
+
+  output:
+    tuple val(run_id), path("sc2rf_postprocess_output/${run_id}_sc2rf.fasta"), emit: fasta
+    tuple val(run_id), path("sc2rf_postprocess_output/${run_id}_sc2rf.tsv"), emit: tsv
+
+  script:
+  motifs = params.sc2rf_motifs == "" ? "" : "--motifs ${params.sc2rf_motifs}"
+  """
+  mkdir sc2rf_postprocess_output
+  sc2rf_postprocess.py \
+    --prefix ${run_id}_sc2rf \
+    --csv ${sc2rf_csv} \
+    --ansi ${sc2rf_ansi} \
+    --min-len ${params.sc2rf_min_len} \
+    --max-parents ${params.sc2rf_max_parents} \
+    --max-breakpoints ${params.sc2rf_max_breakpoints} \
+    --outdir sc2rf_postprocess_output \
+    --aligned ${alignment} \
+    --issues ${issues} \
+    ${motifs}
+  """
+}
+
+process fasta_to_vcf {
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(sc2rf_recombinants_fasta), path(problematic_sites)
+
+  output:
+    val(run_id)
+
+  script:
+  """
+  faToVcf \
+    -ambiguousToN \
+    -maskSites=${problematic_sites} \
+    -ref='${params.nextclade_custom_ref}' \
+    ${sc2rf_recombinants_fasta} \
+    ${params.run_id}
+  # gzip -f {params.prefix}
+  """
 }
