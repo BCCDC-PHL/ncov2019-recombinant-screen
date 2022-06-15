@@ -214,3 +214,22 @@ process fasta_to_vcf {
   """
 }
 
+process usher_download {
+
+  tag {}
+
+  input:
+    
+
+  output:
+    
+
+  script:
+  """
+  wget -q -O usher.pb.gz ${params.usher_pb_url}
+  wget -q -O metadata.tsv.gz ${params.usher_metadata_url}
+  wget -q -O version.txt ${params.usher_version_url}
+  # csvtk mutate2 -t -n "dataset" -e '"{wildcards.input}"' {output.metadata}.gz 1> {output.metadata} 2>> {log};
+  # rm -f {output.metadata}.gz
+  """
+}

@@ -11,6 +11,7 @@ include { nextclade_recombinants } from './modules/recombinant_screen.nf'
 include { sc2rf } from './modules/recombinant_screen.nf'
 include { sc2rf_recombinants } from './modules/recombinant_screen.nf'
 include { fasta_to_vcf } from './modules/recombinant_screen.nf'
+include { usher_download } from './modules/recombinant_screen.nf'
 
 
 workflow {
@@ -39,4 +40,8 @@ workflow {
     sc2rf_recombinants(sc2rf.out.join(nextclade.out).join(issues_download.out.issues))
 
     fasta_to_vcf(sc2rf_recombinants.out.fasta.combine(ch_problematic_sites))
+
+    if (params.run_usher) {
+      usher_download()
+    }
 }
