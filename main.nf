@@ -22,10 +22,31 @@ include { linelist } from './modules/recombinant_screen.nf'
 workflow {
 
   ch_run_id             = Channel.of(params.run_id)
-  ch_ref                = Channel.fromPath(params.ref)
-  ch_breakpoints        = Channel.fromPath(params.breakpoints)
-  ch_primer_bed         = Channel.fromPath(params.primer_bed)
-  ch_problematic_sites  = Channel.fromPath(params.problematic_sites)
+
+  if (params.ref == "NO_FILE") {
+    ch_ref              = Channel.fromPath("${projectDir}/assets/reference.fasta")
+  } else {
+    ch_ref              = Channel.fromPath(params.ref)
+  }
+
+  if (params.breakpoints == "NO_FILE") {
+    ch_breakpoints      = Channel.fromPath("${projectDir}/assets/breakpoints.tsv")
+  } else {
+    ch_breakpoints      = Channel.fromPath(params.breakpoints)
+  }
+
+  if (params.primer_bed == "NO_FILE") {
+    ch_primer_bed       = Channel.fromPath("${projectDir}/assets/BCCDC-PHL_1200_v4.scheme.bed")
+  } else {
+    ch_primer_bed       = Channel.fromPath(params.primer_bed)
+  }
+
+  if (params.problematic_sites == "NO_FILE") {
+    ch_problematic_sites  = Channel.fromPath("${projectDir}/assets/problematic_sites.vcf")
+  } else {
+    ch_problematic_sites  = Channel.fromPath(params.problematic_sites)
+  }
+
   ch_artic_analysis_dir = Channel.fromPath(params.artic_analysis_dir)
   ch_metadata           = Channel.fromPath(params.metadata)
 

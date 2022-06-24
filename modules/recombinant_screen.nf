@@ -239,7 +239,7 @@ process fasta_to_vcf {
 
 process usher_download {
 
-  executor: 'local'
+  executor 'local'
 
   input:
     
