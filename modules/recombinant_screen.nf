@@ -133,6 +133,7 @@ process nextclade_recombinants {
     | csvtk cut -t -f "seqName" \
     | tail -n+2 \
     > ${run_id}_nextclade_recombinants.tsv
+
   # Filter Alignment
   seqkit grep -p "${params.nextclade_custom_ref}" ${alignment} 1> aligned.fa
   seqkit grep -f ${run_id}_nextclade_recombinants.tsv ${alignment} 1>> ${run_id}_recombinants.aln.fa
@@ -278,8 +279,8 @@ process usher {
     -v ${recombinants_vcf} \
     --threads ${task.cpus} \
     --outdir usher_output
-  cat <(echo -e "strain\\tusher_clade\\tusher_pango_lineage") usher_output/clades.txt > ${run_id}_usher_clades.tsv
-  cat <(echo -e "strain\\tusher_best_set_difference\\tusher_num_best") <(sed 's/[[:space:]]*\$//' usher_output/placement_stats.tsv) > ${run_id}_usher_placement_stats.tsv
+  cp usher_output/clades.txt ${run_id}_usher_clades.tsv
+  cp usher_output/placement_stats.tsv ${run_id}_usher_placement_stats.tsv
   """
 }
 
@@ -287,17 +288,30 @@ process usher_stats {
 
   tag { run_id }
 
+  executor 'local'
+
   input:
-    tuple val(run_id), path(usher_clades), path(usher_placement_stats)
+    tuple val(run_id), path(usher_clades), path(usher_placement_stats), path(issue_to_lineage)
 
   output:
-    val(run_id)
+    tuple val(run_id), path("${run_id}_usher_clades_with_header.tsv"), path("${run_id}_placement_stats_with_header.tsv"), emit: clades_and_placements
+    tuple val(run_id), path("${run_id}_usher_strains.tsv"), emit: strains
 
 
   script:
   """
-  echo -e "strain\\tusher_clade\\tusher_pango_lineage" > clades.tsv
+  echo -e "strain\\tusher_best_set_difference\\tusher_num_best" > ${run_id}_placement_stats_with_header.tsv
+  sed 's/[[:space:]]*\$//' ${usher_placement_stats} >> ${run_id}_placement_stats_with_header.tsv
 
+  echo -e "strain\\tusher_clade\\tusher_pango_lineage" > ${run_id}_usher_clades_with_header.tsv
+  cat ${usher_clades} >> ${run_id}_usher_clades_with_header.tsv
+
+  csvtk mutate -t -f "usher_pango_lineage" -n "usher_pango_lineage_map" ${run_id}_usher_clades_with_header.tsv \
+    | csvtk replace -t -f "usher_pango_lineage_map" -p "proposed([0-9]+)" -k ${issue_to_lineage} -r "{{kv}}" \
+    > ${run_id}_usher_clades_with_header.tsv.tmp
+  mv ${run_id}_usher_clades_with_header.tsv.tmp ${run_id}_usher_clades_with_header.tsv
+
+  csvtk cut -t -f "strain" ${run_id}_usher_clades_with_header.tsv | tail -n+2 > ${run_id}_usher_strains.tsv
   """
 }
 
@@ -306,19 +320,24 @@ process summary {
 
   tag { run_id }
 
-  publishDir "${params.outdir}", pattern: "${run_id}_recombinant_summary.tsv", mode: 'copy'
+  executor 'local'
+
+  publishDir "${params.outdir}", pattern: "${run_id}_recombinant_screen_summary.tsv", mode: 'copy'
 
   input:
-    tuple val(run_id), path(nextclade_metadata), path(sc2rf_stats)
+    tuple val(run_id), path(nextclade_metadata), path(sc2rf_stats), path(usher_clades), path(usher_placements)
 
   output:
-    tuple val(run_id), path("${run_id}_recombinant_summary.tsv")
+    tuple val(run_id), path("${run_id}_recombinant_screen_summary.tsv")
 
   script:
   """
   csvtk cut -t -f "strain,date,clade,Nextclade_pango" ${nextclade_metadata} \
     | csvtk rename -t -f "clade" -n "Nextclade_clade" \
     | csvtk merge -t --na "NA" -f "strain" - ${sc2rf_stats} \
-    > ${run_id}_recombinant_summary.tsv
+    | csvtk merge -t -k --na "NA" -f "strain" ${usher_placements} - \
+    | csvtk merge -t -k --na "NA" -f "strain" ${usher_clades} - \
+    | csvtk sort -t -k "Nextclade_clade:r" \
+    > ${run_id}_recombinant_screen_summary.tsv
   """
 }

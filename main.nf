@@ -14,6 +14,7 @@ include { nextclade_exclude_false_positives } from './modules/recombinant_screen
 include { fasta_to_vcf } from './modules/recombinant_screen.nf'
 include { usher_download } from './modules/recombinant_screen.nf'
 include { usher } from './modules/recombinant_screen.nf'
+include { usher_stats } from './modules/recombinant_screen.nf'
 include { summary } from './modules/recombinant_screen.nf'
 
 
@@ -52,5 +53,7 @@ workflow {
 
     usher(fasta_to_vcf.out.combine(usher_download.out))
 
-    summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats))
+    usher_stats(usher.out.join(issues_download.out.issue_to_lineage))
+
+    summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades_and_placements))
 }
