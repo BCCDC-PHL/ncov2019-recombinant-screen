@@ -79,10 +79,12 @@ process nextclade {
   tag { run_id }
 
   input:
-    tuple val(run_id), path(sequences), path(dataset)
+    tuple val(run_id), path(sequences), path(dataset), path(metadata)
 
   output:
-    tuple val(run_id), path("${run_id}.aln.fa"), path("${run_id}_nextclade_qc.tsv")
+    tuple val(run_id), path("${run_id}.aln.fa"), emit: alignment
+    tuple val(run_id), path("${run_id}_nextclade_qc.tsv"), emit: qc
+    tuple val(run_id), path("${run_id}_nextclade_metadata.tsv"), emit: metadata
 
   script:
   """
@@ -100,6 +102,11 @@ process nextclade {
   # Rename ref strain
   seqkit replace -p "${params.nextclade_ref}" -r "${params.nextclade_custom_ref}" ${run_id}.aln.fa > ${run_id}.aln.fa.tmp
   mv ${run_id}.aln.fa.tmp ${run_id}.aln.fa
+
+  # Merge QC output with metadata
+  csvtk rename -t -f "seqName" -n "strain" ${run_id}_nextclade_qc.tsv \
+      | csvtk merge -t -f "strain" <(csvtk rename -t -f "sample" -n "strain" ${metadata}) - \
+      > ${run_id}_nextclade_metadata.tsv
   """
 }
 
@@ -170,45 +177,64 @@ process sc2rf_recombinants {
 
   output:
     tuple val(run_id), path("sc2rf_postprocess_output/${run_id}_sc2rf.fasta"), emit: fasta
-    tuple val(run_id), path("sc2rf_postprocess_output/${run_id}_sc2rf.tsv"), emit: tsv
+    tuple val(run_id), path("sc2rf_postprocess_output/${run_id}_sc2rf.tsv"), emit: stats
 
   script:
   motifs = params.sc2rf_motifs == "" ? "" : "--motifs ${params.sc2rf_motifs}"
   """
   mkdir sc2rf_postprocess_output
   sc2rf_postprocess.py \
-    --prefix ${run_id}_sc2rf \
     --csv ${sc2rf_csv} \
     --ansi ${sc2rf_ansi} \
+    --prefix ${run_id}_sc2rf \
     --min-len ${params.sc2rf_min_len} \
     --max-parents ${params.sc2rf_max_parents} \
     --max-breakpoints ${params.sc2rf_max_breakpoints} \
     --outdir sc2rf_postprocess_output \
     --aligned ${alignment} \
-    --custom-ref "${params.nextclade_custom_ref}" \
     --issues ${issues} \
-    --qc ${nextclade_qc_tsv} \
     ${motifs}
   """
 }
+
+process nextclade_exclude_false_positives {
+
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(alignment), path(sc2rf_stats)
+
+  output:
+    tuple val(run_id), path("${run_id}_recombinants_excluding_false_positives.aln.fa")
+
+  script:
+  """
+  csvtk grep -t -f "sc2rf_status" -p "false_positive" -v ${sc2rf_stats} \
+      | csvtk cut -t -f "strain" \
+      | tail -n+2  \
+      | seqkit grep -f - ${alignment} > ${run_id}_recombinants_excluding_false_positives.aln.fa
+  """
+}
+
 
 process fasta_to_vcf {
 
   tag { run_id }
 
   input:
-    tuple val(run_id), path(sc2rf_recombinants_fasta), path(problematic_sites)
+    tuple val(run_id), path(sc2rf_recombinants_fasta), path(problematic_sites), path(reference)
 
   output:
     tuple val(run_id), path("${run_id}_recombinants.vcf.gz")
 
   script:
   """
+  cat ${reference} ${sc2rf_recombinants_fasta} > ${run_id}_sc2rf_recombinants_with_reference.fasta
   faToVcf \
     -ambiguousToN \
     -maskSites=${problematic_sites} \
     -ref='${params.nextclade_custom_ref}' \
-    ${sc2rf_recombinants_fasta} \
+    ${run_id}_sc2rf_recombinants_with_reference.fasta \
     ${run_id}_recombinants.vcf
   gzip -f ${run_id}_recombinants.vcf
   """
@@ -252,7 +278,47 @@ process usher {
     -v ${recombinants_vcf} \
     --threads ${task.cpus} \
     --outdir usher_output
-  cat <(echo -e "library_id\\tusher_clade\\tusher_pango_lineage") usher_output/clades.txt > ${run_id}_usher_clades.tsv
-  cat <(echo -e "library_id\\tusher_best_set_difference\\tusher_num_best") <(sed 's/[[:space:]]*\$//' usher_output/placement_stats.tsv) > ${run_id}_usher_placement_stats.tsv
+  cat <(echo -e "strain\\tusher_clade\\tusher_pango_lineage") usher_output/clades.txt > ${run_id}_usher_clades.tsv
+  cat <(echo -e "strain\\tusher_best_set_difference\\tusher_num_best") <(sed 's/[[:space:]]*\$//' usher_output/placement_stats.tsv) > ${run_id}_usher_placement_stats.tsv
+  """
+}
+
+process usher_stats {
+
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(usher_clades), path(usher_placement_stats)
+
+  output:
+    val(run_id)
+
+
+  script:
+  """
+  echo -e "strain\\tusher_clade\\tusher_pango_lineage" > clades.tsv
+
+  """
+}
+
+
+process summary {
+
+  tag { run_id }
+
+  publishDir "${params.outdir}", pattern: "${run_id}_recombinant_summary.tsv", mode: 'copy'
+
+  input:
+    tuple val(run_id), path(nextclade_metadata), path(sc2rf_stats)
+
+  output:
+    tuple val(run_id), path("${run_id}_recombinant_summary.tsv")
+
+  script:
+  """
+  csvtk cut -t -f "strain,date,clade,Nextclade_pango" ${nextclade_metadata} \
+    | csvtk rename -t -f "clade" -n "Nextclade_clade" \
+    | csvtk merge -t --na "NA" -f "strain" - ${sc2rf_stats} \
+    > ${run_id}_recombinant_summary.tsv
   """
 }
