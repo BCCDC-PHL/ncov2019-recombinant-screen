@@ -16,6 +16,7 @@ include { usher_download } from './modules/recombinant_screen.nf'
 include { usher } from './modules/recombinant_screen.nf'
 include { usher_stats } from './modules/recombinant_screen.nf'
 include { summary } from './modules/recombinant_screen.nf'
+include { linelist } from './modules/recombinant_screen.nf'
 
 
 workflow {
@@ -56,4 +57,6 @@ workflow {
     usher_stats(usher.out.join(issues_download.out.issue_to_lineage))
 
     summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades_and_placements))
+
+    linelist(summary.out.join(issues_download.out.issues))
 }

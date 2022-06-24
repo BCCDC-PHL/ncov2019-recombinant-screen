@@ -116,8 +116,6 @@ process nextclade_recombinants {
 
   executor 'local'
 
-  publishDir "${params.outdir}", pattern: "${run_id}_nextclade_recombinants.tsv", mode: 'copy'
-
   input:
     tuple val(run_id), path(alignment), path(nextclade_qc)
 
@@ -170,8 +168,6 @@ process sc2rf_recombinants {
   tag { run_id }
 
   executor 'local'
-
-  publishDir "${params.outdir}", pattern: "sc2rf_postprocess_output/${run_id}_sc2rf.*", mode: 'copy', saveAs: { filename -> filename.split("/").last() }
 
   input:
     tuple val(run_id), path(sc2rf_ansi), path(sc2rf_csv), path(alignment), path(nextclade_qc_tsv), path(issues)
@@ -243,6 +239,8 @@ process fasta_to_vcf {
 
 process usher_download {
 
+  executor: 'local'
+
   input:
     
 
@@ -262,8 +260,6 @@ process usher_download {
 process usher {
 
   tag { run_id }
-
-  publishDir "${params.outdir}", pattern: "${run_id}_usher*", mode: 'copy'
 
   input:
     tuple val(run_id), path(recombinants_vcf), path(usher_tree)
@@ -339,5 +335,51 @@ process summary {
     | csvtk merge -t -k --na "NA" -f "strain" ${usher_clades} - \
     | csvtk sort -t -k "Nextclade_clade:r" \
     > ${run_id}_recombinant_screen_summary.tsv
+  """
+}
+
+process linelist {
+
+  tag { run_id }
+
+  executor 'local'
+
+  publishDir "${params.outdir}", pattern: "${run_id}_recombinant_screen_*.tsv", mode: 'copy'
+
+  input:
+    tuple val(run_id), path(recombinant_screen_summary), path(issues)	
+
+  output:
+    tuple val(run_id), path("${run_id}_recombinant_screen_linelist.tsv"), emit: linelist 
+    tuple val(run_id), path("${run_id}_recombinant_screen_positives.tsv"), emit: positives
+    tuple val(run_id), path("${run_id}_recombinant_screen_false_positives.tsv"), emit: false_positives
+    tuple val(run_id), path("${run_id}_recombinant_screen_negatives.tsv"), emit: negatives
+
+  script:
+  """
+  linelist.py --input ${recombinant_screen_summary} --issues ${issues} --max-placements ${params.usher_max_placements} --outdir . 
+  mv linelist.tsv ${run_id}_recombinant_screen_linelist.tsv
+  mv positives.tsv ${run_id}_recombinant_screen_positives.tsv
+  mv false_positives.tsv ${run_id}_recombinant_screen_false_positives.tsv
+  mv negatives.tsv ${run_id}_recombinant_screen_negatives.tsv
+  """
+}
+
+process report {
+
+  tag { run_id }
+
+  executor 'local'
+
+  publishDir "${params.outdir}", pattern: "", mode: 'copy'
+
+  input:
+    tuple val(run_id), path(nextclade_metadata), path(sc2rf_stats), path(usher_clades), path(usher_placements)
+
+  output:
+    tuple val(run_id), path("${run_id}_recombinant_screen_summary.tsv")
+
+  script:
+  """
   """
 }
