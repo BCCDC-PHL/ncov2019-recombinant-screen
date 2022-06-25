@@ -13,7 +13,6 @@ flowchart TD
   metadata(metadata.tsv)
   problematic_sites(problematic_sites.vcf)
   breakpoints(breakpoints.tsv)
-  click issues_download(issues_download) "https://github.com/BCCDC-PHL/ncov2019-recombinant-screen/blob/main/modules/recombinant_screen.nf#L1-L19" "issues_download"
   breakpoints(breakpoints.tsv) --> issues_download(issues_download)
   run_dir(run_dir) --> identify_complete_genomes(identify_complete_genomes)
   nextclade_dataset(nextclade_dataset)
@@ -48,7 +47,9 @@ flowchart TD
 
 ```
 nextflow run BCCDC-PHL/ncov2019-recombinant-screen \
-  
+  -profile conda --cache ~/.conda/envs \
+  --run_dir </path/to/artic_analysis_run_dir> \
+  --outdir </path/to/output_dir>
 ```
 
 ## Input

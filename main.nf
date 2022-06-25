@@ -21,7 +21,9 @@ include { linelist } from './modules/recombinant_screen.nf'
 
 workflow {
 
-  ch_run_id             = Channel.of(params.run_id)
+  ch_run_dir            = Channel.fromPath(params.run_dir)
+
+  ch_run_id             = Channel.of(file(params.run_dir).getName())
 
   if (params.ref == "NO_FILE") {
     ch_ref              = Channel.fromPath("${projectDir}/assets/reference.fasta")
@@ -47,8 +49,15 @@ workflow {
     ch_problematic_sites  = Channel.fromPath(params.problematic_sites)
   }
 
-  ch_artic_analysis_dir = Channel.fromPath(params.artic_analysis_dir)
-  ch_metadata           = Channel.fromPath(params.metadata)
+  if (params.metadata == "NO_FILE") {
+    ch_metadata           = Channel.fromPath(params.run_dir + "/" + "metadata.tsv")
+  } else {
+    ch_metadata           = Channel.fromPath(params.metadata)
+  }
+
+  ch_artic_analysis_dir = Channel.fromPath(params.run_dir + "/" +params.artic_analysis_subdir)
+  
+  
 
   main:
     issues_download(ch_run_id.combine(ch_breakpoints))
