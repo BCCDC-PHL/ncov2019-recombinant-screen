@@ -245,15 +245,53 @@ process usher_download {
     
 
   output:
-    path("usher.pb.gz")
+    path("usher.pb.gz"), emit: pb
+    path("metadata.tsv.gz"), emit: metadata
+    path("version.txt"), emit: ver
 
   script:
   """
   wget -q -O usher.pb.gz ${params.usher_pb_url}
   wget -q -O metadata.tsv.gz ${params.usher_metadata_url}
   wget -q -O version.txt ${params.usher_version_url}
-  # csvtk mutate2 -t -n "dataset" -e '"{wildcards.input}"' metadata.tsv.gz 1> {output.metadata} 2>> {log};
-  # rm -f {output.metadata}.gz
+  """
+}
+
+
+process usher_columns {
+
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(usher_metadata)
+
+  output:
+    tuple val(run_id), path("usher_metadata.tsv"), emit: usher_metadata
+    tuple val(run_id), path("gisaid_id_map.tsv"), emit: gisaid_id_map
+
+  script:
+  gisaid_regex = "^.*EPI_ISL_[0-9|-]*"
+  """
+  set +o pipefail
+
+  # Extract strains with embedded GISID IDs
+  csvtk cut -t -f "strain" ${usher_metadata} \
+    | grep -o -E "${gisaid_regex}" \
+    | awk -F "|" '{{print \$0"\\\t"\$2}}' \
+    > gisaid_id_map.tsv
+
+  # Extract strains without GISAID IDs
+  csvtk cut -t -f "strain" ${usher_metadata} \
+    | tail -n+2 \
+    | grep -v -E "${gisaid_regex}" \
+    | awk '{{print \$0"\\\tNone"}}' \
+    >> gisaid_id_map.tsv
+
+  csvtk mutate2 -t -n "dataset" -e '"{wildcards.input}"' ${usher_metadata} \
+    | csvtk rename -t -f "pangolin_lineage" -n "pango_lineage" \
+    | csvtk mutate -t -f "strain" -n "gisaid_epi_isl" \
+    | csvtk replace -t -f "gisaid_epi_isl" -p "(.*)" -k gisaid_id_map.tsv -r "{{kv}}" \
+    > usher_metadata.tsv
   """
 }
 
@@ -265,13 +303,15 @@ process usher {
     tuple val(run_id), path(recombinants_vcf), path(usher_tree)
 
   output:
-    tuple val(run_id), path("${run_id}_usher_clades.tsv"), path("${run_id}_usher_placement_stats.tsv")
+    tuple val(run_id), path("${run_id}_usher_clades.tsv"), emit: clades
+    tuple val(run_id), path("${run_id}_usher_placement_stats.tsv"), emit: placement_stats
+    tuple val(run_id), path("${run_id}_usher.pb.gz"), emit: pb
 
   script:
   """
   usher \
     -i ${usher_tree} \
-    -o output.pb \
+    -o ${run_id}_usher.pb.gz \
     -v ${recombinants_vcf} \
     --threads ${task.cpus} \
     --outdir usher_output
@@ -290,7 +330,8 @@ process usher_stats {
     tuple val(run_id), path(usher_clades), path(usher_placement_stats), path(issue_to_lineage)
 
   output:
-    tuple val(run_id), path("${run_id}_usher_clades_with_header.tsv"), path("${run_id}_placement_stats_with_header.tsv"), emit: clades_and_placements
+    tuple val(run_id), path("${run_id}_usher_clades_with_header.tsv"), emit: clades
+    tuple val(run_id), path("${run_id}_placement_stats_with_header.tsv"), emit: placement_stats
     tuple val(run_id), path("${run_id}_usher_strains.tsv"), emit: strains
 
 
@@ -311,6 +352,75 @@ process usher_stats {
   """
 }
 
+process usher_metadata {
+
+  tag { run_id }
+
+  executor 'local'
+
+  input:
+    tuple val(run_id), path(nextclade_metadata), path(sc2rf_recombinants_stats), path(usher_clades), path(usher_placement_stats), path(issue_to_lineage)
+
+  output:
+    tuple val(run_id), path("${run_id}_usher_metadata.tsv"), emit: metadata
+    tuple val(run_id), path("${run_id}_usher_metadata_decimal_date.tsv"), emit: decimal_date
+
+  script:
+  default_cols = "strain,date"
+  extract_cols = "clade,usher_clade,Nextclade_pango,usher_pango_lineage,sc2rf_parents,sc2rf_regions,sc2rf_breakpoints,usher_num_best"
+  rename_cols = "Nextstrain_clade,Nextstrain_clade_usher,pangolin_lineage,pango_lineage_usher,parents,parents_regions,breakpoints,usher_placements"
+  rename_cols_final = "clade_nextclade,clade_usher,lineage_nextclade,lineage_usher,parents,parents_regions,breakpoints,usher_placements"
+  """
+  csvtk merge -t -f "strain" ${nextclade_metadata} ${sc2rf_recombinants_stats} ${usher_clades} ${usher_placement_stats} \
+    | csvtk cut -t -f "${default_cols},${extract_cols}" \
+    | csvtk rename -t -f "${extract_cols}" -n "${rename_cols}" \
+    | csvtk cut -t -f "${default_cols},${rename_cols}" \
+    | csvtk rename -t -f "${rename_cols}" -n "${rename_cols_final}" \
+    | csvtk replace -t -f "lineage_usher" -p "proposed([0-9]+)" -k ${issue_to_lineage} -r "{kv}" \
+    > ${run_id}_usher_metadata.tsv
+
+  date_to_decimal.py ${run_id}_usher_metadata.tsv ${run_id}_usher_metadata_decimal_date.tsv
+  """
+}
+
+
+process usher_subtree {
+
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(usher_tree), path(usher_stats_strains), path(usher_metadata_decimal_date)
+
+  output:
+    tuple val(run_id), path("${run_id}_subtrees"), emit: subtrees_dir
+
+  script:
+  """
+  mkdir ${run_id}_subtrees
+  cd ${run_id}_subtrees
+  matUtils extract \
+    -i ../${usher_tree} \
+    --nearest-k-batch ../${usher_stats_strains}:${params.usher_subtree_k} \
+    -M ../${usher_metadata_decimal_date} \
+    --threads ${task.cpus}
+  """
+}
+
+process usher_subtree_collapse {
+
+  tag { run_id }
+
+  input:
+    tuple val(run_id), path(subtrees_dir)
+
+  output:
+    tuple val(run_id), path("${run_id}_subtrees_collapsed"), emit: collapse_dir
+
+  script:
+  """
+  usher_collapse.py --indir ${subtrees_dir} --outdir ${run_id}_subtrees_collapsed
+  """
+}
 
 process summary {
 

@@ -32,6 +32,7 @@ flowchart TD
   problematic_sites(problematic_sites.vcf) --> fasta_to_vcf(fasta_to_vcf)
   ref(ref.fa) --> fasta_to_vcf(fasta_to_vcf)
   usher_download(usher_download) --> usher(usher)
+  usher_download(usher_download) --> usher_columns(usher_columns)
   fasta_to_vcf(fasta_to_vcf) --> usher(usher)
   usher(usher) --> usher_stats(usher_stats)
   issues_download(issues_download) --> usher_stats(usher_stats)

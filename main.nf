@@ -13,8 +13,12 @@ include { sc2rf_recombinants } from './modules/recombinant_screen.nf'
 include { nextclade_exclude_false_positives } from './modules/recombinant_screen.nf'
 include { fasta_to_vcf } from './modules/recombinant_screen.nf'
 include { usher_download } from './modules/recombinant_screen.nf'
+include { usher_columns } from './modules/recombinant_screen.nf'
 include { usher } from './modules/recombinant_screen.nf'
 include { usher_stats } from './modules/recombinant_screen.nf'
+include { usher_metadata } from './modules/recombinant_screen.nf'
+include { usher_subtree } from './modules/recombinant_screen.nf'
+include { usher_subtree_collapse } from './modules/recombinant_screen.nf'
 include { summary } from './modules/recombinant_screen.nf'
 include { linelist } from './modules/recombinant_screen.nf'
 
@@ -55,9 +59,8 @@ workflow {
     ch_metadata           = Channel.fromPath(params.metadata)
   }
 
-  ch_artic_analysis_dir = Channel.fromPath(params.run_dir + "/" +params.artic_analysis_subdir)
-  
-  
+  ch_artic_analysis_dir = Channel.fromPath(params.run_dir + "/" + params.artic_analysis_subdir)
+
 
   main:
     issues_download(ch_run_id.combine(ch_breakpoints))
@@ -82,11 +85,19 @@ workflow {
     
     usher_download()
 
-    usher(fasta_to_vcf.out.combine(usher_download.out))
+    usher_columns(ch_run_id.combine(usher_download.out.metadata))
 
-    usher_stats(usher.out.join(issues_download.out.issue_to_lineage))
+    usher(fasta_to_vcf.out.combine(usher_download.out.pb))
 
-    summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades_and_placements))
+    usher_stats(usher.out.clades.join(usher.out.placement_stats).join(issues_download.out.issue_to_lineage))
 
-    linelist(summary.out.join(issues_download.out.issues))
+    usher_metadata(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades).join(usher_stats.out.placement_stats).join(issues_download.out.issue_to_lineage))
+
+    usher_subtree(usher.out.pb.join(usher_stats.out.strains).join(usher_metadata.out.decimal_date))
+
+    usher_subtree_collapse(usher_subtree.out.subtrees_dir)
+
+    summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades).join(usher_stats.out.placement_stats))
+
+    // linelist(summary.out.join(issues_download.out.issues))
 }
