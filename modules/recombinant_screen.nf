@@ -411,14 +411,14 @@ process usher_subtree_collapse {
   tag { run_id }
 
   input:
-    tuple val(run_id), path(subtrees_dir)
+    tuple val(run_id), path(subtrees_dir), path(geo_resolutions)
 
   output:
     tuple val(run_id), path("${run_id}_subtrees_collapsed"), emit: collapse_dir
 
   script:
   """
-  usher_collapse.py --indir ${subtrees_dir} --outdir ${run_id}_subtrees_collapsed
+  usher_collapse.py --indir ${subtrees_dir} --geo-resolutions ${geo_resolutions} --outdir ${run_id}_subtrees_collapsed
   """
 }
 

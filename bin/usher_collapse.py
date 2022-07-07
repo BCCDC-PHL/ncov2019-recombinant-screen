@@ -6,7 +6,7 @@ import logging
 import sys
 
 NO_DATA_CHAR = "NA"
-GEO_RESOLUTIONS = "resources/geo_resolutions.json"
+
 COLS_RENAME = {
     "clade_nextclade": "Clade (Nextclade)",
     "clade_usher": "Clade (UShER)",
@@ -36,6 +36,7 @@ def json_get_strains(json_tree):
 @click.option("--indir", help="Input directory of subtrees.", required=True)
 @click.option("--outdir", help="Output directory for collapsed trees.", required=True)
 @click.option("--log", help="Logfile.", required=False)
+@click.option("--geo-resolutions", help="Geographical resolutions file (json).", required=True)
 # @click.option(
 #     "--duplicate-col",
 #     help="Label duplicate sequences based on the ID in this column.",
@@ -45,8 +46,10 @@ def main(
     indir,
     outdir,
     log,
+    geo_resolutions,
     # duplicate_col,
 ):
+    GEO_RESOLUTIONS = geo_resolutions
     """Collect and condense UShER subtrees"""
 
     # Check for directory

@@ -59,6 +59,12 @@ workflow {
     ch_metadata           = Channel.fromPath(params.metadata)
   }
 
+  if (params.geo_resolutions == "NO_FILE") {
+    ch_geo_resolutions           = Channel.fromPath("${projectDir}/assets/geo_resolutions.json")
+  } else {
+    ch_geo_resolutions           = Channel.fromPath(params.geo_resolutions)
+  }
+
   ch_artic_analysis_dir = Channel.fromPath(params.run_dir + "/" + params.artic_analysis_subdir)
 
 
@@ -95,7 +101,7 @@ workflow {
 
     usher_subtree(usher.out.pb.join(usher_stats.out.strains).join(usher_metadata.out.decimal_date))
 
-    usher_subtree_collapse(usher_subtree.out.subtrees_dir)
+    usher_subtree_collapse(usher_subtree.out.subtrees_dir.combine(ch_geo_resolutions))
 
     summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades).join(usher_stats.out.placement_stats))
 
