@@ -103,7 +103,7 @@ workflow {
 
     usher_subtree_collapse(usher_subtree.out.subtrees_dir.combine(ch_geo_resolutions))
 
-    summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades).join(usher_stats.out.placement_stats))
+    summary(nextclade.out.metadata.join(sc2rf_recombinants.out.stats).join(usher_stats.out.clades).join(usher_stats.out.placement_stats).join(usher_subtree_collapse.out.metadata))
 
-    // linelist(summary.out.join(issues_download.out.issues))
+    linelist(summary.out.join(issues_download.out.issues))
 }

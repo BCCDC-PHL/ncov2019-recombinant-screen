@@ -5,7 +5,7 @@ import pandas as pd
 import copy
 from datetime import datetime
 import numpy as np
-
+import json
 # Hard-coded constants
 
 NO_DATA_CHAR = "NA"
@@ -23,6 +23,7 @@ LINELIST_COLS = {
     "sc2rf_parents": "parents",
     "sc2rf_breakpoints": "breakpoints",
     "usher_num_best": "placements",
+    "usher_subtree": "subtree",
     "sc2rf_regions": "regions",
     "date": "date",
 }
@@ -205,12 +206,14 @@ def main(
         lineage = rec[1]["lineage_usher"]
         parents = rec[1]["parents"]
         breakpoints = rec[1]["breakpoints"]
+        subtree = rec[1]["subtree"]
         match = None
 
         for i in rec_seen:
             rec_lin = rec_seen[i]
             # lineage and parents have to match
             # one of bp or subtree has to match
+
             if (
                 rec_lin["lineage"] == lineage
                 and rec_lin["parents"] == parents
@@ -230,6 +233,7 @@ def main(
                 "lineage": lineage,
                 "breakpoints": breakpoints,
                 "parents": parents,
+                "subtree": subtree,
                 "strains": [strain],
             }
             seen_i += 1
