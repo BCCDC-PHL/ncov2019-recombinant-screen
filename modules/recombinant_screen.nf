@@ -442,9 +442,9 @@ process summary {
   csvtk cut -t -f "strain,date,clade,Nextclade_pango" ${nextclade_metadata} \
     | csvtk rename -t -f "clade" -n "Nextclade_clade" \
     | csvtk merge -t --na "NA" -f "strain" - ${sc2rf_stats} \
-    | csvtk merge -t -k --na "NA" -f "strain" ${subtrees_metadata} - \
-    | csvtk merge -t -k --na "NA" -f "strain" ${usher_placements} - \
-    | csvtk merge -t -k --na "NA" -f "strain" ${usher_clades} - \
+    | csvtk merge -t -k --na "NA" -f "strain" - ${subtrees_metadata} \
+    | csvtk merge -t -k --na "NA" -f "strain" - ${usher_placements} \
+    | csvtk merge -t -k --na "NA" -f "strain" - ${usher_clades} \
     | csvtk sort -t -k "Nextclade_clade:r" \
     > ${run_id}_recombinant_screen_summary.tsv
   """
