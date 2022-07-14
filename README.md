@@ -60,10 +60,17 @@ flowchart TD
   usher_subtree(usher_subtree) -- subtrees_dir --> usher_subtree_collapse(usher_subtree_collapse)
   summary(summary) -- summary --> linelist(linelist)
   issues_download(issues_download) -- issues --> linelist(linelist)
-  
+  linelist(linelist) --> linelist_tsv(linelist.tsv)
+  linelist(linelist) --> positives_tsv(positives.tsv)
+  linelist(linelist) --> negatives_tsv(negatives.tsv)
+  linelist(linelist) --> false_positives_tsv(false_positives.tsv)
   style nextclade fill:#4287f5
   style usher fill:#4287f5
   style sc2rf fill:#4287f5
+  style linelist_tsv fill: #53cc43
+  style positives_tsv fill: #53cc43
+  style negatives_tsv fill: #53cc43
+  style false_positives_tsv fill: #53cc43
 ```
 
 
